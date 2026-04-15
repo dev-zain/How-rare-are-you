@@ -9,8 +9,6 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
-// using a custom light scheme instead of dynamic colors
-// because we want consistent branding across all devices
 private val AppColorScheme = lightColorScheme(
     primary = BrandPurple,
     onPrimary = TextOnPurple,
@@ -27,21 +25,18 @@ private val AppColorScheme = lightColorScheme(
 
 @Composable
 fun HowrareAreYouTheme(content: @Composable () -> Unit) {
-    // make the status bar blend with our gradient header
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            // status bar matches the purple gradient top
             window.statusBarColor = BrandPurple.toArgb()
             window.navigationBarColor = SurfaceBg.toArgb()
             WindowCompat.getInsetsController(window, view).apply {
-                isAppearanceLightStatusBars = false    // white icons on purple
-                isAppearanceLightNavigationBars = true // dark icons on light bg
+                isAppearanceLightStatusBars = false
+                isAppearanceLightNavigationBars = true
             }
         }
     }
-
     MaterialTheme(
         colorScheme = AppColorScheme,
         typography = Typography,

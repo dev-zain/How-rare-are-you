@@ -4,78 +4,72 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import com.devzain.howrareareyou.data.RarityCalculator
 import com.devzain.howrareareyou.data.UserAnswer
 import com.devzain.howrareareyou.ui.screens.QuizScreen
+import com.devzain.howrareareyou.ui.screens.ResultScreen
+import com.devzain.howrareareyou.ui.screens.ShareScreen
 import com.devzain.howrareareyou.ui.screens.WelcomeScreen
 import com.devzain.howrareareyou.ui.theme.HowrareAreYouTheme
 
-/**
- * Single-activity architecture.
- * Using a simple state enum for navigation right now.
- * Will switch to compose navigation once we have more screens
- * (result, share, breakdown, etc.)
- */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             HowrareAreYouTheme {
-                // which screen are we showing
-                var currentScreen by remember { mutableStateOf(AppScreen.WELCOME) }
+                var screen by remember { mutableStateOf(Screen.WELCOME) }
+                var quizResult by remember { mutableStateOf<RarityCalculator.RarityResult?>(null) }
+                var quizAnswers by remember { mutableStateOf<List<UserAnswer>>(emptyList()) }
 
-                // quiz results — stored here so we can pass to the result screen later
-                var quizResult by remember {
-                    mutableStateOf<RarityCalculator.RarityResult?>(null)
-                }
-                var quizAnswers by remember {
-                    mutableStateOf<List<UserAnswer>>(emptyList())
-                }
-
-                when (currentScreen) {
-                    AppScreen.WELCOME -> {
+                when (screen) {
+                    Screen.WELCOME -> {
                         WelcomeScreen(
-                            onStartQuiz = {
-                                currentScreen = AppScreen.QUIZ
-                            }
+                            onStartQuiz = { screen = Screen.QUIZ }
                         )
                     }
-
-                    AppScreen.QUIZ -> {
+                    Screen.QUIZ -> {
                         QuizScreen(
-                            onBackPressed = {
-                                currentScreen = AppScreen.WELCOME
-                            },
+                            onBackPressed = { screen = Screen.WELCOME },
                             onQuizComplete = { result, answers ->
                                 quizResult = result
                                 quizAnswers = answers
-                                // TODO: navigate to result screen
-                                // for now, just go back to welcome
-                                currentScreen = AppScreen.WELCOME
+                                screen = Screen.RESULT
                             }
                         )
                     }
-
-                    // we'll add these screens next
-                    // AppScreen.RESULT -> { ... }
-                    // AppScreen.SHARE -> { ... }
+                    Screen.RESULT -> {
+                        quizResult?.let { result ->
+                            ResultScreen(
+                                result = result,
+                                answers = quizAnswers,
+                                onShareClick = {
+                                    screen = Screen.SHARE
+                                },
+                                onRetakeClick = {
+                                    quizResult = null
+                                    quizAnswers = emptyList()
+                                    screen = Screen.QUIZ
+                                }
+                            )
+                        }
+                    }
+                    Screen.SHARE -> {
+                        quizResult?.let { result ->
+                            ShareScreen(
+                                result = result,
+                                answers = quizAnswers,
+                                onBackClick = {
+                                    screen = Screen.RESULT
+                                }
+                            )
+                        }
+                    }
                 }
             }
         }
     }
 }
 
-// simple navigation for now — keeps things straightforward
-enum class AppScreen {
-    WELCOME,
-    QUIZ,
-    // these are coming next:
-    // RESULT,
-    // SHARE,
-    // BREAKDOWN,
-}
+enum class Screen { WELCOME, QUIZ, RESULT, SHARE }
