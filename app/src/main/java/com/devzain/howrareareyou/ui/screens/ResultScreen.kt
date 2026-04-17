@@ -39,9 +39,10 @@ import kotlin.random.Random
 /**
  * The big reveal screen after completing all 20 questions.
  *
- * Flow: loading phase (dramatic text changes) → score reveal with
- * animated ring + counter → personalized description → top rarest
- * traits → full Q&A breakdown → share/retake buttons.
+ * Flow: loading phase (dramatic text changes) -> score reveal with
+ * animated ring + counter -> personalized description -> "what your
+ * score means" explanation -> top rarest traits -> category-grouped
+ * full breakdown with result notes -> share/retake buttons.
  *
  * This screen is designed to be screenshot-worthy because
  * that's literally how the app spreads.
@@ -186,6 +187,7 @@ private fun RevealPhase(
     val questions = remember { QuestionBank.getAllQuestions() }
     val description = remember { ResultGenerator.generateDescription(answers, result) }
     val topTraits = remember { ResultGenerator.getTopRarestTraits(answers) }
+    val scoreExplanation = remember { ResultGenerator.generateScoreExplanation(result) }
     val tierColor = getTierColor(result.tier)
 
     // animate the score counting up from 0
@@ -213,6 +215,13 @@ private fun RevealPhase(
         animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
         label = "badgeScale"
     )
+    // gentle pulse on the share button to attract attention
+    val sharePulse = rememberInfiniteTransition(label = "sharePulse")
+    val sharePulseScale by sharePulse.animateFloat(
+        initialValue = 1f, targetValue = 1.03f,
+        animationSpec = infiniteRepeatable(tween(1200, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "sharePulseScale"
+    )
 
     LaunchedEffect(Unit) {
         // tiny delay for the "reveal" feeling
@@ -231,6 +240,17 @@ private fun RevealPhase(
                 delay = Random.nextInt(2000),
                 rotation = Random.nextFloat() * 360,
             )
+        }
+    }
+
+    // group answers by category for the organized breakdown
+    val answersByCategory = remember {
+        QuizCategory.entries.mapNotNull { category ->
+            val categoryAnswers = answers.mapNotNull { answer ->
+                val question = questions.find { it.id == answer.questionId }
+                if (question?.category == category) Pair(question, answer) else null
+            }
+            if (categoryAnswers.isNotEmpty()) Pair(category, categoryAnswers) else null
         }
     }
 
@@ -351,13 +371,13 @@ private fun RevealPhase(
                 }
             }
 
-            // below the header — description, traits, breakdown
+            // below the header — description, explanation, traits, breakdown
             Column(
                 modifier = Modifier.padding(horizontal = 24.dp).alpha(contentAlpha)
             ) {
                 Spacer(Modifier.height(20.dp))
 
-                // personalized description card
+                // ====== ABOUT YOUR RARITY ======
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(18.dp),
@@ -386,9 +406,40 @@ private fun RevealPhase(
                     }
                 }
 
-                Spacer(Modifier.height(18.dp))
+                Spacer(Modifier.height(14.dp))
 
-                // top rarest traits
+                // ====== WHAT YOUR SCORE MEANS ======
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
+                    elevation = CardDefaults.cardElevation(4.dp),
+                ) {
+                    Column(modifier = Modifier.padding(18.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(AccentTeal.copy(alpha = 0.1f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("\uD83D\uDCCA", fontSize = 16.sp) // chart emoji
+                            }
+                            Spacer(Modifier.width(10.dp))
+                            Text("What Your Score Means", color = TextDark, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                        Spacer(Modifier.height(10.dp))
+                        Text(
+                            scoreExplanation, color = TextMedium, fontSize = 14.sp,
+                            lineHeight = 22.sp,
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(22.dp))
+
+                // ====== TOP RAREST TRAITS ======
                 if (topTraits.isNotEmpty()) {
                     Text(
                         "\u2B50 Your Rarest Traits",
@@ -398,7 +449,7 @@ private fun RevealPhase(
                     )
                     Spacer(Modifier.height(10.dp))
 
-                    topTraits.forEachIndexed { idx, (name, pct) ->
+                    topTraits.forEachIndexed { idx, trait ->
                         val traitColor = when (idx) {
                             0 -> AccentGold
                             1 -> BrandPurpleSoft
@@ -428,9 +479,18 @@ private fun RevealPhase(
                                     }
                                     Spacer(Modifier.width(12.dp))
                                     Column(modifier = Modifier.weight(1f)) {
-                                        Text(name, color = TextDark, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                        // show category context
+                                        if (trait.category.isNotEmpty()) {
+                                            Text(
+                                                trait.category,
+                                                color = TextLight,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Medium,
+                                            )
+                                        }
+                                        Text(trait.traitName, color = TextDark, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                                         Text(
-                                            "Only %.1f%% of people".format(pct),
+                                            "Only %.1f%% of people".format(trait.percentage),
                                             color = TextLight, fontSize = 12.sp,
                                         )
                                     }
@@ -446,7 +506,7 @@ private fun RevealPhase(
                                 ) {
                                     Box(
                                         modifier = Modifier
-                                            .fillMaxWidth(fraction = (pct / 100f).toFloat().coerceIn(0.02f, 1f))
+                                            .fillMaxWidth(fraction = (trait.percentage / 100f).toFloat().coerceIn(0.02f, 1f))
                                             .fillMaxHeight()
                                             .clip(RoundedCornerShape(2.dp))
                                             .background(traitColor)
@@ -460,7 +520,7 @@ private fun RevealPhase(
 
                 Spacer(Modifier.height(22.dp))
 
-                // ====== FULL Q&A BREAKDOWN ======
+                // ====== FULL BREAKDOWN BY CATEGORY ======
                 Text(
                     "\uD83D\uDCCB Your Full Breakdown",
                     color = TextDark,
@@ -468,16 +528,20 @@ private fun RevealPhase(
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    "Every question and what you answered",
+                    "Every question, your answer, and what it means",
                     color = TextLight,
                     fontSize = 12.sp,
                 )
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(14.dp))
 
-                answers.forEachIndexed { idx, answer ->
-                    // find the matching question
-                    val question = questions.find { it.id == answer.questionId }
-                    if (question != null) {
+                answersByCategory.forEach { (category, categoryAnswers) ->
+                    // category section header
+                    CategorySectionHeader(category)
+                    Spacer(Modifier.height(8.dp))
+
+                    categoryAnswers.forEach { (question, answer) ->
+                        val option = question.options.getOrNull(answer.selectedIndex)
+
                         val rarityLevel = when {
                             answer.probability <= 0.01 -> "Extremely Rare"
                             answer.probability <= 0.05 -> "Very Rare"
@@ -501,58 +565,30 @@ private fun RevealPhase(
                             elevation = CardDefaults.cardElevation(1.dp),
                         ) {
                             Column(modifier = Modifier.padding(14.dp)) {
-                                // question number + category
+                                // question short name + rarity badge
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(28.dp)
-                                            .clip(CircleShape)
-                                            .background(BrandPurple.copy(alpha = 0.1f)),
-                                        contentAlignment = Alignment.Center,
-                                    ) {
+                                    Column(modifier = Modifier.weight(1f)) {
                                         Text(
-                                            "${idx + 1}",
+                                            question.shortName,
+                                            color = TextDark,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                        )
+                                        Spacer(Modifier.height(2.dp))
+                                        Text(
+                                            answer.traitName,
                                             color = BrandPurple,
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Medium,
                                         )
                                     }
-                                    Spacer(Modifier.width(8.dp))
-                                    Text(
-                                        question.text,
-                                        color = TextDark,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        modifier = Modifier.weight(1f),
-                                        lineHeight = 18.sp,
-                                    )
-                                }
-
-                                Spacer(Modifier.height(8.dp))
-
-                                // user's answer + rarity
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .background(rarityColor.copy(alpha = 0.08f))
-                                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Text(
-                                        answer.traitName,
-                                        color = TextDark,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        modifier = Modifier.weight(1f),
-                                    )
                                     // rarity badge
                                     if (answer.probability < 1.0) {
                                         Box(
                                             modifier = Modifier
                                                 .clip(RoundedCornerShape(8.dp))
-                                                .background(rarityColor.copy(alpha = 0.15f))
-                                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                                                .background(rarityColor.copy(alpha = 0.12f))
+                                                .padding(horizontal = 8.dp, vertical = 4.dp)
                                         ) {
                                             Text(
                                                 rarityLevel,
@@ -563,25 +599,63 @@ private fun RevealPhase(
                                         }
                                     }
                                 }
+
+                                // result note — the explanation for this specific answer
+                                val resultNote = option?.resultNote ?: ""
+                                if (resultNote.isNotEmpty()) {
+                                    Spacer(Modifier.height(6.dp))
+                                    Text(
+                                        resultNote,
+                                        color = TextMedium,
+                                        fontSize = 12.sp,
+                                        lineHeight = 17.sp,
+                                        fontStyle = FontStyle.Italic,
+                                    )
+                                }
+
+                                // visual rarity bar
+                                if (answer.probability < 1.0) {
+                                    Spacer(Modifier.height(8.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(3.dp)
+                                            .clip(RoundedCornerShape(2.dp))
+                                            .background(SurfaceDivider)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth(
+                                                    fraction = (answer.probability)
+                                                        .toFloat().coerceIn(0.02f, 1f)
+                                                )
+                                                .fillMaxHeight()
+                                                .clip(RoundedCornerShape(2.dp))
+                                                .background(rarityColor.copy(alpha = 0.6f))
+                                        )
+                                    }
+                                }
                             }
                         }
                         Spacer(Modifier.height(6.dp))
                     }
+                    Spacer(Modifier.height(10.dp))
                 }
 
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(16.dp))
 
-                // share button
+                // share button with gentle pulse
                 Box(
                     modifier = Modifier
                         .fillMaxWidth().height(54.dp)
+                        .scale(sharePulseScale)
                         .clip(RoundedCornerShape(16.dp))
                         .background(Brush.horizontalGradient(listOf(BrandPurple, BrandPurpleLight)))
                         .clickable { onShareClick() },
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        "Share My Rarity  \u2192",
+                        "\uD83D\uDCE4  Share My Rarity  \u2192",
                         color = Color.White,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.SemiBold,
@@ -605,6 +679,37 @@ private fun RevealPhase(
                 Spacer(Modifier.height(32.dp))
             }
         }
+    }
+}
+
+/**
+ * Colored section header for grouping breakdown items by category.
+ */
+@Composable
+private fun CategorySectionHeader(category: QuizCategory) {
+    val bgColor = when (category) {
+        QuizCategory.PHYSICAL -> CatPhysical
+        QuizCategory.SKILLS -> CatSkills
+        QuizCategory.LIFE -> CatLife
+        QuizCategory.QUIRKS -> CatQuirks
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(bgColor)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(category.emoji, fontSize = 16.sp)
+        Spacer(Modifier.width(8.dp))
+        Text(
+            category.displayName,
+            color = TextDark,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
     }
 }
 
@@ -661,12 +766,12 @@ private fun getTierColor(tier: RarityCalculator.RarityTier): Color {
 
 private fun getTierEmoji(tier: RarityCalculator.RarityTier): String {
     return when (tier) {
-        RarityCalculator.RarityTier.MYTHIC -> "\uD83C\uDF1F"     // 🌟
-        RarityCalculator.RarityTier.LEGENDARY -> "\uD83D\uDD25"  // 🔥
-        RarityCalculator.RarityTier.EPIC -> "\uD83D\uDC8E"       // 💎
-        RarityCalculator.RarityTier.RARE -> "\u2728"              // ✨
-        RarityCalculator.RarityTier.UNCOMMON -> "\uD83D\uDCA0"   // 💠
-        RarityCalculator.RarityTier.COMMON -> "\uD83D\uDD35"     // 🔵
+        RarityCalculator.RarityTier.MYTHIC -> "\uD83C\uDF1F"     // star
+        RarityCalculator.RarityTier.LEGENDARY -> "\uD83D\uDD25"  // fire
+        RarityCalculator.RarityTier.EPIC -> "\uD83D\uDC8E"       // gem
+        RarityCalculator.RarityTier.RARE -> "\u2728"              // sparkles
+        RarityCalculator.RarityTier.UNCOMMON -> "\uD83D\uDCA0"   // diamond
+        RarityCalculator.RarityTier.COMMON -> "\uD83D\uDD35"     // blue dot
     }
 }
 
@@ -677,16 +782,16 @@ fun ResultPreview() {
         ResultScreen(
             result = RarityCalculator.RarityResult(
                 combinedProbability = 0.0000004,
-                oneInX = 2380952,
-                percentile = 87.5,
-                tier = RarityCalculator.RarityTier.EPIC,
+                oneInX = 27,
+                percentile = 96.27,
+                tier = RarityCalculator.RarityTier.LEGENDARY,
                 rarestTraitIndex = 2,
                 rarityScore = 12.5,
             ),
             answers = listOf(
-                UserAnswer(1, 1, 0.10, "Left-handed"),
-                UserAnswer(2, 5, 0.02, "Green eyes"),
-                UserAnswer(3, 7, 0.006, "AB\u2212 blood"),
+                UserAnswer(1, 1, 0.10, "Left-handed", "Handedness"),
+                UserAnswer(2, 5, 0.02, "Green eyes", "Eye Color"),
+                UserAnswer(3, 7, 0.006, "AB\u2212 blood type", "Blood Type"),
             ),
         )
     }

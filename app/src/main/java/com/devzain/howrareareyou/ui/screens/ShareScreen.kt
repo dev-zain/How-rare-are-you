@@ -3,7 +3,6 @@ package com.devzain.howrareareyou.ui.screens
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
-import android.view.View
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -19,14 +18,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -222,7 +218,7 @@ fun ShareScreen(
 @Composable
 fun SharePostcard(
     result: RarityCalculator.RarityResult,
-    topTraits: List<Pair<String, Double>>,
+    topTraits: List<ResultGenerator.RareTrait>,
     modifier: Modifier = Modifier,
 ) {
     val tierColor = when (result.tier) {
@@ -243,7 +239,7 @@ fun SharePostcard(
     }
 
     Card(
-        modifier = modifier.aspectRatio(9f / 16f),
+        modifier = modifier.aspectRatio(4f / 5f),
         shape = RoundedCornerShape(24.dp),
         elevation = CardDefaults.cardElevation(12.dp),
     ) {
@@ -284,7 +280,7 @@ fun SharePostcard(
                 modifier = Modifier.fillMaxSize(),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Spacer(Modifier.weight(0.5f))
+                Spacer(Modifier.weight(0.3f))
 
                 // app title
                 Text(
@@ -294,17 +290,17 @@ fun SharePostcard(
                     fontWeight = FontWeight.Medium,
                 )
 
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(14.dp))
 
                 // big rarity ring
                 Box(
                     contentAlignment = Alignment.Center,
-                    modifier = Modifier.size(160.dp),
+                    modifier = Modifier.size(140.dp),
                 ) {
                     // ring drawn with drawBehind
                     Box(
                         modifier = Modifier
-                            .size(150.dp)
+                            .size(130.dp)
                             .drawBehind {
                                 // track ring
                                 drawArc(
@@ -342,7 +338,7 @@ fun SharePostcard(
                     }
                 }
 
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(8.dp))
 
                 // percentile
                 Text(
@@ -353,7 +349,7 @@ fun SharePostcard(
                 Text(
                     "%.2f%%".format(result.percentile),
                     color = Color.White,
-                    fontSize = 32.sp,
+                    fontSize = 28.sp,
                     fontWeight = FontWeight.Bold,
                 )
                 Text(
@@ -362,7 +358,7 @@ fun SharePostcard(
                     fontSize = 12.sp,
                 )
 
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(6.dp))
 
                 // tier badge
                 Box(
@@ -379,16 +375,16 @@ fun SharePostcard(
                     )
                 }
 
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(12.dp))
 
-                // top traits
+                // top traits with category context
                 if (topTraits.isNotEmpty()) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(16.dp))
                             .background(Color.White.copy(alpha = 0.08f))
-                            .padding(14.dp)
+                            .padding(10.dp)
                     ) {
                         Column {
                             Text(
@@ -398,25 +394,25 @@ fun SharePostcard(
                                 fontWeight = FontWeight.Medium,
                             )
                             Spacer(Modifier.height(6.dp))
-                            topTraits.forEachIndexed { idx, (name, pct) ->
+                            topTraits.forEachIndexed { idx, trait ->
                                 Row(
-                                    modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
                                     Text(
                                         when (idx) { 0 -> "\u2B50"; 1 -> "\uD83E\uDD48"; else -> "\uD83E\uDD49" },
                                         fontSize = 12.sp,
                                     )
-                                    Spacer(Modifier.width(8.dp))
+                                    Spacer(Modifier.width(6.dp))
                                     Text(
-                                        name,
+                                        trait.traitName,
                                         color = Color.White,
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Medium,
                                         modifier = Modifier.weight(1f),
                                     )
                                     Text(
-                                        "%.1f%%".format(pct),
+                                        "%.1f%%".format(trait.percentage),
                                         color = AccentGold,
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold,
@@ -427,7 +423,7 @@ fun SharePostcard(
                     }
                 }
 
-                Spacer(Modifier.weight(0.3f))
+                Spacer(Modifier.weight(0.15f))
 
                 // challenge text
                 Text(
@@ -470,72 +466,261 @@ fun SharePostcard(
 }
 
 /**
- * Creates a bitmap of the postcard and shares it via Android's share sheet.
- * The share text includes the hashtag and a link to the app.
+ * Creates a bitmap of the postcard using Android Canvas API and shares it.
+ * This approach is 100% reliable — no ComposeView rendering issues.
  */
 private fun sharePostcard(
     context: Context,
     result: RarityCalculator.RarityResult,
-    topTraits: List<Pair<String, Double>>,
+    topTraits: List<ResultGenerator.RareTrait>,
 ) {
-    // create a ComposeView to render the postcard as a bitmap
-    val composeView = ComposeView(context).apply {
-        setContent {
-            SharePostcard(
-                result = result,
-                topTraits = topTraits,
-                modifier = Modifier.size(width = 1080.dp, height = 1920.dp),
+    try {
+        val width = 1080
+        val height = 1350
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(bitmap)
+        val w = width.toFloat()
+        val h = height.toFloat()
+
+        // --- gradient background ---
+        val bgPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            shader = android.graphics.LinearGradient(
+                0f, 0f, 0f, h,
+                intArrayOf(0xFF4A1C96.toInt(), 0xFF7C3AED.toInt(), 0xFF9B5DE5.toInt(), 0xFF6B3FA0.toInt()),
+                null, android.graphics.Shader.TileMode.CLAMP
             )
         }
+        canvas.drawRect(0f, 0f, w, h, bgPaint)
+
+        // --- decorative circles ---
+        val circlePaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+        circlePaint.color = 0x0AFFFFFF
+        canvas.drawCircle(w * 0.8f, h * 0.15f, w * 0.6f, circlePaint)
+        circlePaint.color = 0x07FFFFFF
+        canvas.drawCircle(w * 0.1f, h * 0.7f, w * 0.4f, circlePaint)
+        circlePaint.color = 0x0FD4A843.toInt()
+        canvas.drawCircle(w * 0.5f, h * 0.4f, w * 0.3f, circlePaint)
+
+        // --- "How Rare Are You?" title ---
+        val titlePaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0x99FFFFFF.toInt()
+            textSize = 42f
+            textAlign = android.graphics.Paint.Align.CENTER
+            typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.NORMAL)
+        }
+        canvas.drawText("How Rare Are You?", w / 2f, 120f, titlePaint)
+
+        // --- rarity ring ---
+        val ringCx = w / 2f
+        val ringCy = 350f
+        val ringR = 150f
+
+        // ring track
+        val trackPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            style = android.graphics.Paint.Style.STROKE
+            strokeWidth = 14f
+            color = 0x1FFFFFFF
+            strokeCap = android.graphics.Paint.Cap.ROUND
+        }
+        canvas.drawCircle(ringCx, ringCy, ringR, trackPaint)
+
+        // ring fill arc
+        val fillPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            style = android.graphics.Paint.Style.STROKE
+            strokeWidth = 14f
+            color = 0xFFD4A843.toInt()
+            strokeCap = android.graphics.Paint.Cap.ROUND
+        }
+        val ringRect = android.graphics.RectF(ringCx - ringR, ringCy - ringR, ringCx + ringR, ringCy + ringR)
+        val sweep = 360f * (result.percentile / 100.0).toFloat()
+        canvas.drawArc(ringRect, -90f, sweep, false, fillPaint)
+
+        // "1 in" text
+        val smallWhite = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0x99FFFFFF.toInt()
+            textSize = 34f
+            textAlign = android.graphics.Paint.Align.CENTER
+        }
+        canvas.drawText("1 in", ringCx, ringCy - 15f, smallWhite)
+
+        // big number
+        val bigWhite = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xFFFFFFFF.toInt()
+            textSize = 58f
+            textAlign = android.graphics.Paint.Align.CENTER
+            typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+        }
+        canvas.drawText(RarityCalculator.formatOneInX(result.oneInX), ringCx, ringCy + 45f, bigWhite)
+
+        // --- "Rarer than" + percentage ---
+        canvas.drawText("Rarer than", w / 2f, 540f, smallWhite)
+
+        val pctPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xFFFFFFFF.toInt()
+            textSize = 80f
+            textAlign = android.graphics.Paint.Align.CENTER
+            typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+        }
+        canvas.drawText("%.2f%%".format(result.percentile), w / 2f, 630f, pctPaint)
+        canvas.drawText("of all humans", w / 2f, 680f, smallWhite)
+
+        // --- tier badge ---
+        val tierText = "${getTierEmojiText(result.tier)} ${result.tier.label}"
+        val tierColor = getTierColorInt(result.tier)
+        val badgePaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = (tierColor and 0x00FFFFFF) or 0x33000000 // 20% alpha of tier color
+        }
+        val badgeTextPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = tierColor
+            textSize = 38f
+            textAlign = android.graphics.Paint.Align.CENTER
+            typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+        }
+        val badgeWidth = badgeTextPaint.measureText(tierText) + 80f
+        val badgeLeft = (w - badgeWidth) / 2f
+        canvas.drawRoundRect(badgeLeft, 715f, badgeLeft + badgeWidth, 770f, 30f, 30f, badgePaint)
+        canvas.drawText(tierText, w / 2f, 755f, badgeTextPaint)
+
+        // --- traits box ---
+        val boxTop = 810f
+        val boxPadding = 40f
+        val traitLineHeight = 70f
+        val boxHeight = 80f + topTraits.size * traitLineHeight
+
+        val boxPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0x14FFFFFF
+        }
+        canvas.drawRoundRect(boxPadding, boxTop, w - boxPadding, boxTop + boxHeight, 40f, 40f, boxPaint)
+
+        // "My rarest traits:" label
+        val labelPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xB3FFFFFF.toInt()
+            textSize = 32f
+            textAlign = android.graphics.Paint.Align.LEFT
+        }
+        canvas.drawText("My rarest traits:", boxPadding + 30f, boxTop + 45f, labelPaint)
+
+        // each trait
+        val traitPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xFFFFFFFF.toInt()
+            textSize = 34f
+            textAlign = android.graphics.Paint.Align.LEFT
+        }
+        val pctTraitPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xFFD4A843.toInt()
+            textSize = 34f
+            textAlign = android.graphics.Paint.Align.RIGHT
+            typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+        }
+        val medals = listOf("\u2B50", "\uD83E\uDD48", "\uD83E\uDD49")
+        topTraits.forEachIndexed { idx, trait ->
+            val y = boxTop + 80f + (idx + 0.7f) * traitLineHeight
+            val medal = medals.getOrElse(idx) { "" }
+            canvas.drawText("$medal  ${trait.traitName}", boxPadding + 30f, y, traitPaint)
+            canvas.drawText("%.1f%%".format(trait.percentage), w - boxPadding - 30f, y, pctTraitPaint)
+        }
+
+        // --- "Can you beat my score?" ---
+        val challengePaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xFFD4A843.toInt()
+            textSize = 42f
+            textAlign = android.graphics.Paint.Align.CENTER
+            typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+        }
+        canvas.drawText("Can you beat my score?", w / 2f, 1170f, challengePaint)
+
+        // divider line
+        val linePaint = android.graphics.Paint().apply { color = 0x26FFFFFF; strokeWidth = 2f }
+        canvas.drawLine(w * 0.3f, 1210f, w * 0.7f, 1210f, linePaint)
+
+        // hashtag
+        val hashPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0x80FFFFFF.toInt()
+            textSize = 36f
+            textAlign = android.graphics.Paint.Align.CENTER
+        }
+        canvas.drawText(APP_HASHTAG, w / 2f, 1270f, hashPaint)
+
+        // "Download on Google Play"
+        val dlPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0x59FFFFFF
+            textSize = 30f
+            textAlign = android.graphics.Paint.Align.CENTER
+        }
+        canvas.drawText("Download on Google Play", w / 2f, 1315f, dlPaint)
+
+        // --- save to cache and share ---
+        val sharedDir = File(context.cacheDir, "shared")
+        sharedDir.mkdirs()
+        val file = File(sharedDir, "rarity_card.png")
+        file.outputStream().use { out ->
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+        }
+        bitmap.recycle()
+
+        val uri = FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            file
+        )
+
+        val shareText = buildString {
+            append("I'm rarer than ${String.format("%.1f", result.percentile)}% of all humans! ")
+            append("(${result.tier.label} Rarity)\n\n")
+            append("Can you beat my score?\n\n")
+            append(APP_HASHTAG)
+            append("\n")
+            append(PLAY_STORE_URL)
+        }
+
+        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+            type = "image/png"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            putExtra(Intent.EXTRA_TEXT, shareText)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+
+        context.startActivity(Intent.createChooser(shareIntent, "Share your rarity"))
+
+    } catch (e: Exception) {
+        // fallback: share text only if image rendering fails
+        val shareText = buildString {
+            append("I'm rarer than ${String.format("%.1f", result.percentile)}% of all humans! ")
+            append("(${result.tier.label} Rarity)\n\n")
+            append("Can you beat my score?\n\n")
+            append(APP_HASHTAG)
+            append("\n")
+            append(PLAY_STORE_URL)
+        }
+        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, shareText)
+        }
+        context.startActivity(Intent.createChooser(shareIntent, "Share your rarity"))
     }
+}
 
-    // measure and layout at Instagram story size (1080x1920 pixels)
-    val widthSpec = View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY)
-    val heightSpec = View.MeasureSpec.makeMeasureSpec(1920, View.MeasureSpec.EXACTLY)
-    composeView.measure(widthSpec, heightSpec)
-    composeView.layout(0, 0, 1080, 1920)
-
-    // draw to bitmap
-    val bitmap = Bitmap.createBitmap(1080, 1920, Bitmap.Config.ARGB_8888)
-    val canvas = android.graphics.Canvas(bitmap)
-    composeView.draw(canvas)
-
-    // save to cache directory
-    val sharedDir = File(context.cacheDir, "shared")
-    sharedDir.mkdirs()
-    val file = File(sharedDir, "rarity_card.png")
-    file.outputStream().use { out ->
-        bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+// helper functions for Canvas-based rendering
+private fun getTierColorInt(tier: RarityCalculator.RarityTier): Int {
+    return when (tier) {
+        RarityCalculator.RarityTier.MYTHIC -> 0xFFF5C518.toInt()
+        RarityCalculator.RarityTier.LEGENDARY -> 0xFFFF6B35.toInt()
+        RarityCalculator.RarityTier.EPIC -> 0xFFE040FB.toInt()
+        RarityCalculator.RarityTier.RARE -> 0xFF26C6DA.toInt()
+        RarityCalculator.RarityTier.UNCOMMON -> 0xFF66BB6A.toInt()
+        RarityCalculator.RarityTier.COMMON -> 0xFF90A4AE.toInt()
     }
-    bitmap.recycle()
+}
 
-    // get a content URI through FileProvider
-    val uri = FileProvider.getUriForFile(
-        context,
-        "${context.packageName}.fileprovider",
-        file
-    )
-
-    // build the share text with hashtag
-    val tierLabel = result.tier.label
-    val shareText = buildString {
-        append("I'm rarer than ${String.format("%.1f", result.percentile)}% of all humans! ")
-        append("($tierLabel Rarity)\n\n")
-        append("Can you beat my score?\n\n")
-        append(APP_HASHTAG)
-        append("\n")
-        append(PLAY_STORE_URL)
+private fun getTierEmojiText(tier: RarityCalculator.RarityTier): String {
+    return when (tier) {
+        RarityCalculator.RarityTier.MYTHIC -> "\uD83C\uDF1F"
+        RarityCalculator.RarityTier.LEGENDARY -> "\uD83D\uDD25"
+        RarityCalculator.RarityTier.EPIC -> "\uD83D\uDC8E"
+        RarityCalculator.RarityTier.RARE -> "\u2728"
+        RarityCalculator.RarityTier.UNCOMMON -> "\uD83D\uDCA0"
+        RarityCalculator.RarityTier.COMMON -> "\uD83D\uDD35"
     }
-
-    // fire the share intent
-    val shareIntent = Intent(Intent.ACTION_SEND).apply {
-        type = "image/png"
-        putExtra(Intent.EXTRA_STREAM, uri)
-        putExtra(Intent.EXTRA_TEXT, shareText)
-        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-    }
-
-    context.startActivity(Intent.createChooser(shareIntent, "Share your rarity"))
 }
 
 @Preview(showBackground = true)
@@ -545,16 +730,16 @@ fun SharePreview() {
         ShareScreen(
             result = RarityCalculator.RarityResult(
                 combinedProbability = 0.0000004,
-                oneInX = 2380952,
-                percentile = 87.5,
-                tier = RarityCalculator.RarityTier.EPIC,
+                oneInX = 27,
+                percentile = 96.27,
+                tier = RarityCalculator.RarityTier.LEGENDARY,
                 rarestTraitIndex = 2,
                 rarityScore = 12.5,
             ),
             answers = listOf(
-                UserAnswer(1, 1, 0.10, "Left-handed"),
-                UserAnswer(2, 5, 0.02, "Green eyes"),
-                UserAnswer(3, 7, 0.006, "AB\u2212 blood"),
+                UserAnswer(1, 1, 0.10, "Left-handed", "Handedness"),
+                UserAnswer(2, 5, 0.02, "Green eyes", "Eye Color"),
+                UserAnswer(3, 7, 0.006, "AB\u2212 blood type", "Blood Type"),
             ),
         )
     }

@@ -253,6 +253,7 @@ fun QuizScreen(
                                                 probability = option.probability,
                                                 // use the descriptive traitLabel if available, otherwise fall back to the answer text
                                                 traitName = option.traitLabel.ifEmpty { option.text },
+                                                questionShortName = q.shortName,
                                             )
                                         }
                                     }

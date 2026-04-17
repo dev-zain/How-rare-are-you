@@ -1,34 +1,33 @@
 package com.devzain.howrareareyou.data
 
 /**
- * Generates personalized rarity descriptions without needing an AI API.
- *
- * Uses the user's top 2-3 rarest traits to pick a fitting template.
- * The key insight: we don't need infinite variety. We need maybe 15
- * templates that feel specific enough to surprise the user. Nobody
- * takes the quiz more than 2-3 times, so they won't see repeats.
+ * Generates personalized rarity descriptions and explanations.
+ * No AI API needed — uses templates that feel specific and personal.
  */
 object ResultGenerator {
 
     /**
-     * Builds a short, punchy description line from the user's rarest traits.
-     * Returns something like: "A green-eyed, left-handed polyglot?
-     * The universe clearly put extra thought into you."
+     * Represents a single rare trait with full context for display.
      */
+    data class RareTrait(
+        val category: String,     // "Eye Color", "Perfect Pitch", etc.
+        val traitName: String,    // "Green eyes", "Confirmed perfect pitch"
+        val percentage: Double,   // 2.0, 0.01, etc.
+    )
+
     fun generateDescription(
         answers: List<UserAnswer>,
         result: RarityCalculator.RarityResult,
     ): String {
         if (answers.isEmpty()) return "Take the quiz to discover your rarity!"
 
-        // grab the top 3 rarest traits (lowest probability = most rare)
-        val sortedByRarity = answers
-            .filter { it.probability < 0.5 }  // skip super common answers
+        // get the top 3 rarest traits using their descriptive labels
+        val rarestTraits = answers
+            .filter { it.probability < 0.5 && it.traitName.isNotEmpty() }
             .sortedBy { it.probability }
             .take(3)
 
-        // build a trait list like "green-eyed, left-handed, trilingual"
-        val traitNames = sortedByRarity.map { it.traitName }.filter { it.isNotEmpty() }
+        val traitNames = rarestTraits.map { it.traitName }
 
         val traitString = when (traitNames.size) {
             0 -> return pickGenericLine(result.tier)
@@ -37,14 +36,13 @@ object ResultGenerator {
             else -> "${traitNames[0]}, ${traitNames[1]}, and ${traitNames[2]}"
         }
 
-        // pick a closing line based on the tier
         val closer = when (result.tier) {
             RarityCalculator.RarityTier.MYTHIC ->
                 "You're literally one of a kind. The odds of someone matching your exact profile are astronomically low."
             RarityCalculator.RarityTier.LEGENDARY ->
                 "The universe clearly had something special in mind when it made you."
             RarityCalculator.RarityTier.EPIC ->
-                "Your combination of traits is genuinely unusual — you stand out from the crowd."
+                "Your combination of traits is genuinely unusual \u2014 you stand out from the crowd."
             RarityCalculator.RarityTier.RARE ->
                 "That's a pretty unique combination. Not many people share your exact profile."
             RarityCalculator.RarityTier.UNCOMMON ->
@@ -69,19 +67,52 @@ object ResultGenerator {
             RarityCalculator.RarityTier.UNCOMMON ->
                 "You've got a unique mix of traits. While some are common individually, your combination tells a different story."
             RarityCalculator.RarityTier.COMMON ->
-                "Your traits may be common individually, but remember — no two people have the exact same combination. You're still one of a kind."
+                "Your traits may be common individually, but remember \u2014 no two people have the exact same combination."
         }
     }
 
     /**
-     * Returns the top 3 rarest traits for display on the result card.
-     * Each pair contains the trait name and its percentage.
+     * Returns the top 3 rarest traits with their category labels and percentages.
+     * These are shown on the result card and share postcard.
+     *
+     * Example: RareTrait("Perfect Pitch", "Confirmed perfect pitch", 0.01)
      */
-    fun getTopRarestTraits(answers: List<UserAnswer>): List<Pair<String, Double>> {
+    fun getTopRarestTraits(answers: List<UserAnswer>): List<RareTrait> {
         return answers
             .filter { it.traitName.isNotEmpty() && it.probability < 0.5 }
             .sortedBy { it.probability }
             .take(3)
-            .map { Pair(it.traitName, it.probability * 100) }
+            .map { RareTrait(it.questionShortName, it.traitName, it.probability * 100) }
+    }
+
+    /**
+     * Generates a plain-language explanation of what the score actually means.
+     * Shown in the "What Your Score Means" card on the result screen.
+     */
+    fun generateScoreExplanation(result: RarityCalculator.RarityResult): String {
+        val formattedOneInX = RarityCalculator.formatOneInX(result.oneInX)
+        val percentStr = "%.2f".format(result.percentile)
+        val wholePercent = percentStr.split(".")[0]
+
+        val tierLine = when (result.tier) {
+            RarityCalculator.RarityTier.MYTHIC ->
+                "\uD83C\uDF1F One of a Kind \u2014 You're in the top 1% of humanity!"
+            RarityCalculator.RarityTier.LEGENDARY ->
+                "\uD83D\uDD25 Legendary \u2014 You're in the top 5% of all humans!"
+            RarityCalculator.RarityTier.EPIC ->
+                "\uD83D\uDC8E Epic \u2014 You're rarer than 80%+ of people on Earth!"
+            RarityCalculator.RarityTier.RARE ->
+                "\u2728 Rare \u2014 You genuinely stand out from the majority!"
+            RarityCalculator.RarityTier.UNCOMMON ->
+                "\uD83D\uDCA0 Uncommon \u2014 You've got some unique traits in the mix!"
+            RarityCalculator.RarityTier.COMMON ->
+                "\uD83D\uDD35 Your traits may be common, but your exact combination is still one of a kind!"
+        }
+
+        return buildString {
+            append("Your rarity score of $percentStr% means your specific combination of traits is rarer than about $wholePercent out of every 100 people on Earth.\n\n")
+            append("\"1 in $formattedOneInX\" means if you gathered $formattedOneInX random people, statistically only 1 of them would share your same trait combination.\n\n")
+            append(tierLine)
+        }
     }
 }
