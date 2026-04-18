@@ -31,6 +31,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.devzain.howrareareyou.data.*
 import com.devzain.howrareareyou.ui.theme.*
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
+import com.devzain.howrareareyou.utils.SoundManager
 
 /**
  * The quiz gameplay screen. One question at a time with animations.
@@ -44,6 +48,9 @@ fun QuizScreen(
     onBackPressed: () -> Unit = {},
     onQuizComplete: (RarityCalculator.RarityResult, List<UserAnswer>) -> Unit = { _, _ -> },
 ) {
+    val haptic = LocalHapticFeedback.current
+    val context = LocalContext.current
+
     val questions = remember { QuestionBank.getAllQuestions() }
     var currentIndex by remember { mutableIntStateOf(0) }
     var showFunFact by remember { mutableStateOf(false) }
@@ -56,6 +63,9 @@ fun QuizScreen(
 
     val currentQuestion = questions[currentIndex]
     val progress = (currentIndex + 1f) / questions.size
+
+    // block double clicking next
+    var lastClickTime by remember { mutableLongStateOf(0L) }
 
     // track navigation direction for slide animation
     var goingForward by remember { mutableStateOf(true) }
@@ -81,7 +91,7 @@ fun QuizScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(
-                        brush = Brush.verticalGradient(listOf(BrandPurple, BrandPurpleLight)),
+                        brush = Brush.verticalGradient(listOf(NeonCardBg, NeonBg)),
                         shape = RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp)
                     )
                     .padding(horizontal = 20.dp)
@@ -94,6 +104,7 @@ fun QuizScreen(
                         modifier = Modifier
                             .clip(CircleShape)
                             .clickable {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 if (currentIndex > 0) {
                                     goingForward = false
                                     currentIndex--
@@ -179,6 +190,8 @@ fun QuizScreen(
                                     letterBg = if (isSelected) AnswerSelectedBg else style.first,
                                     letterColor = if (isSelected) AnswerSelected else style.second,
                                     onClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        SoundManager.playClick(context)
                                         savedAnswers[currentIndex] = idx
                                         showFunFact = true
                                     }
@@ -231,11 +244,16 @@ fun QuizScreen(
                         modifier = Modifier
                             .fillMaxWidth().height(52.dp)
                             .clip(RoundedCornerShape(14.dp))
-                            .background(Brush.horizontalGradient(listOf(BrandPurple, BrandPurpleLight)))
+                            .background(Brush.horizontalGradient(listOf(NeonCyan, NeonPurple)))
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
                             ) {
+                                val currentMs = System.currentTimeMillis()
+                                if (currentMs - lastClickTime < 400) return@clickable
+                                lastClickTime = currentMs
+
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 goingForward = true
 
                                 if (currentIndex < questions.size - 1) {

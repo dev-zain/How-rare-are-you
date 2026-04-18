@@ -69,7 +69,7 @@ fun ShareScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(
-                        Brush.verticalGradient(listOf(BrandPurple, BrandPurpleLight)),
+                        Brush.verticalGradient(listOf(NeonCardBg, NeonBg)),
                         shape = RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp)
                     )
                     .padding(horizontal = 20.dp)
@@ -138,14 +138,14 @@ fun ShareScreen(
                     modifier = Modifier
                         .fillMaxWidth().height(54.dp)
                         .clip(RoundedCornerShape(16.dp))
-                        .background(Brush.horizontalGradient(listOf(BrandPurple, BrandPurpleLight)))
+                        .background(Brush.horizontalGradient(listOf(NeonPink, NeonPurple)))
                         .clickable {
                             sharePostcard(context, result, topTraits)
                         },
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        "Share to Instagram / WhatsApp  \u2192",
+                        "Share on Social Media  \u2192",
                         color = Color.White,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.SemiBold,
@@ -249,10 +249,10 @@ fun SharePostcard(
                 .background(
                     Brush.verticalGradient(
                         listOf(
-                            Color(0xFF4A1C96),  // deep purple
-                            BrandPurple,
-                            BrandPurpleLight,
-                            Color(0xFF6B3FA0),  // mid purple
+                            NeonBg,
+                            NeonCardBg,
+                            NeonPurple.copy(alpha = 0.4f),
+                            NeonBg
                         )
                     )
                 )
@@ -274,33 +274,30 @@ fun SharePostcard(
                         center = Offset(size.width * 0.5f, size.height * 0.4f),
                     )
                 }
-                .padding(24.dp),
+                .padding(12.dp),
         ) {
             Column(
                 modifier = Modifier.fillMaxSize(),
                 horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.SpaceEvenly,
             ) {
-                Spacer(Modifier.weight(0.3f))
-
                 // app title
                 Text(
                     "How Rare Are You?",
                     color = Color.White.copy(alpha = 0.6f),
-                    fontSize = 14.sp,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Medium,
                 )
-
-                Spacer(Modifier.height(14.dp))
 
                 // big rarity ring
                 Box(
                     contentAlignment = Alignment.Center,
-                    modifier = Modifier.size(140.dp),
+                    modifier = Modifier.size(70.dp),
                 ) {
                     // ring drawn with drawBehind
                     Box(
                         modifier = Modifier
-                            .size(130.dp)
+                            .size(64.dp)
                             .drawBehind {
                                 // track ring
                                 drawArc(
@@ -316,105 +313,100 @@ fun SharePostcard(
                                     startAngle = -90f,
                                     sweepAngle = 360f * (result.percentile / 100f).toFloat(),
                                     useCenter = false,
-                                    style = Stroke(width = 10f, cap = StrokeCap.Round),
-                                )
-                            },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                "1 in",
-                                color = Color.White.copy(alpha = 0.6f),
-                                fontSize = 12.sp,
+                                style = Stroke(width = 8f, cap = StrokeCap.Round),
                             )
-                            Text(
-                                RarityCalculator.formatOneInX(result.oneInX),
-                                color = Color.White,
-                                fontSize = 22.sp,
-                                fontWeight = FontWeight.Bold,
-                                textAlign = TextAlign.Center,
-                            )
-                        }
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            "1 in",
+                            color = Color.White.copy(alpha = 0.6f),
+                            fontSize = 10.sp,
+                        )
+                        Text(
+                            RarityCalculator.formatOneInX(result.oneInX),
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                        )
                     }
                 }
-
-                Spacer(Modifier.height(8.dp))
+            }
 
                 // percentile
                 Text(
                     "Rarer than",
                     color = Color.White.copy(alpha = 0.5f),
-                    fontSize = 12.sp,
+                    fontSize = 10.sp,
                 )
                 Text(
                     "%.2f%%".format(result.percentile),
                     color = Color.White,
-                    fontSize = 28.sp,
+                    fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
                 )
                 Text(
                     "of all humans",
                     color = Color.White.copy(alpha = 0.5f),
-                    fontSize = 12.sp,
+                    fontSize = 10.sp,
                 )
-
-                Spacer(Modifier.height(6.dp))
 
                 // tier badge
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(16.dp))
+                        .clip(RoundedCornerShape(12.dp))
                         .background(tierColor.copy(alpha = 0.2f))
-                        .padding(horizontal = 16.dp, vertical = 6.dp)
+                        .padding(horizontal = 12.dp, vertical = 4.dp)
                 ) {
                     Text(
                         "$tierEmoji ${result.tier.label}",
                         color = tierColor,
-                        fontSize = 14.sp,
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold,
                     )
                 }
-
-                Spacer(Modifier.height(12.dp))
 
                 // top traits with category context
                 if (topTraits.isNotEmpty()) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
+                            .clip(RoundedCornerShape(12.dp))
                             .background(Color.White.copy(alpha = 0.08f))
-                            .padding(10.dp)
+                            .padding(8.dp)
                     ) {
                         Column {
                             Text(
                                 "My rarest traits:",
                                 color = Color.White.copy(alpha = 0.7f),
-                                fontSize = 11.sp,
+                                fontSize = 9.sp,
                                 fontWeight = FontWeight.Medium,
                             )
-                            Spacer(Modifier.height(6.dp))
+                            Spacer(Modifier.height(4.dp))
                             topTraits.forEachIndexed { idx, trait ->
                                 Row(
-                                    modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
                                     Text(
                                         when (idx) { 0 -> "\u2B50"; 1 -> "\uD83E\uDD48"; else -> "\uD83E\uDD49" },
-                                        fontSize = 12.sp,
+                                        fontSize = 10.sp,
                                     )
                                     Spacer(Modifier.width(6.dp))
                                     Text(
                                         trait.traitName,
                                         color = Color.White,
-                                        fontSize = 12.sp,
+                                        fontSize = 10.sp,
                                         fontWeight = FontWeight.Medium,
                                         modifier = Modifier.weight(1f),
+                                        maxLines = 1,
                                     )
                                     Text(
                                         "%.1f%%".format(trait.percentage),
                                         color = AccentGold,
-                                        fontSize = 12.sp,
+                                        fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
                                     )
                                 }
@@ -423,27 +415,21 @@ fun SharePostcard(
                     }
                 }
 
-                Spacer(Modifier.weight(0.15f))
-
                 // challenge text
                 Text(
                     "Can you beat my score?",
                     color = AccentGold,
-                    fontSize = 15.sp,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                 )
-
-                Spacer(Modifier.height(8.dp))
 
                 // divider line
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth(0.4f)
+                        .fillMaxWidth(0.3f)
                         .height(1.dp)
                         .background(Color.White.copy(alpha = 0.15f))
                 )
-
-                Spacer(Modifier.height(10.dp))
 
                 // branding footer
                 Text(
@@ -452,14 +438,6 @@ fun SharePostcard(
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium,
                 )
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    "Download on Google Play",
-                    color = Color.White.copy(alpha = 0.35f),
-                    fontSize = 10.sp,
-                )
-
-                Spacer(Modifier.weight(0.2f))
             }
         }
     }
@@ -486,7 +464,7 @@ private fun sharePostcard(
         val bgPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
             shader = android.graphics.LinearGradient(
                 0f, 0f, 0f, h,
-                intArrayOf(0xFF4A1C96.toInt(), 0xFF7C3AED.toInt(), 0xFF9B5DE5.toInt(), 0xFF6B3FA0.toInt()),
+                intArrayOf(0xFF0A0710.toInt(), 0xFF161224.toInt(), 0xFF3D1B63.toInt(), 0xFF0A0710.toInt()),
                 null, android.graphics.Shader.TileMode.CLAMP
             )
         }
@@ -636,18 +614,10 @@ private fun sharePostcard(
         // hashtag
         val hashPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
             color = 0x80FFFFFF.toInt()
-            textSize = 36f
+            textSize = 40f
             textAlign = android.graphics.Paint.Align.CENTER
         }
-        canvas.drawText(APP_HASHTAG, w / 2f, 1270f, hashPaint)
-
-        // "Download on Google Play"
-        val dlPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-            color = 0x59FFFFFF
-            textSize = 30f
-            textAlign = android.graphics.Paint.Align.CENTER
-        }
-        canvas.drawText("Download on Google Play", w / 2f, 1315f, dlPaint)
+        canvas.drawText(APP_HASHTAG, w / 2f, 1290f, hashPaint)
 
         // --- save to cache and share ---
         val sharedDir = File(context.cacheDir, "shared")

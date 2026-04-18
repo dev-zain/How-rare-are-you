@@ -33,6 +33,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.devzain.howrareareyou.data.*
 import com.devzain.howrareareyou.ui.theme.*
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
+import com.devzain.howrareareyou.utils.SoundManager
 import kotlinx.coroutines.delay
 import kotlin.random.Random
 
@@ -51,11 +55,13 @@ import kotlin.random.Random
 fun ResultScreen(
     result: RarityCalculator.RarityResult,
     answers: List<UserAnswer>,
+    skipLoading: Boolean = false,
     onShareClick: () -> Unit = {},
     onRetakeClick: () -> Unit = {},
+    onHomeClick: () -> Unit = {},
 ) {
     // loading state — show "analyzing" for a few seconds for drama
-    var isLoading by remember { mutableStateOf(true) }
+    var isLoading by remember { mutableStateOf(!skipLoading) }
     var loadingText by remember { mutableStateOf("Analyzing your traits...") }
     var loadingProgress by remember { mutableFloatStateOf(0f) }
 
@@ -83,7 +89,7 @@ fun ResultScreen(
     if (isLoading) {
         LoadingPhase(loadingText, loadingProgress)
     } else {
-        RevealPhase(result, answers, onShareClick, onRetakeClick)
+        RevealPhase(result, answers, onShareClick, onRetakeClick, onHomeClick)
     }
 }
 
@@ -112,7 +118,7 @@ private fun LoadingPhase(text: String, progress: Float) {
 
     Box(
         modifier = Modifier.fillMaxSize().background(
-            Brush.verticalGradient(listOf(BrandPurple, BrandPurpleLight))
+            Brush.verticalGradient(listOf(NeonCardBg, NeonBg))
         ),
         contentAlignment = Alignment.Center
     ) {
@@ -183,12 +189,16 @@ private fun RevealPhase(
     answers: List<UserAnswer>,
     onShareClick: () -> Unit,
     onRetakeClick: () -> Unit,
+    onHomeClick: () -> Unit,
 ) {
     val questions = remember { QuestionBank.getAllQuestions() }
     val description = remember { ResultGenerator.generateDescription(answers, result) }
     val topTraits = remember { ResultGenerator.getTopRarestTraits(answers) }
     val scoreExplanation = remember { ResultGenerator.generateScoreExplanation(result) }
     val tierColor = getTierColor(result.tier)
+
+    val haptic = LocalHapticFeedback.current
+    val context = LocalContext.current
 
     // animate the score counting up from 0
     var animationPlayed by remember { mutableStateOf(false) }
@@ -226,6 +236,8 @@ private fun RevealPhase(
     LaunchedEffect(Unit) {
         // tiny delay for the "reveal" feeling
         delay(100)
+        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+        SoundManager.playSuccess(context)
         animationPlayed = true
     }
 
@@ -261,6 +273,7 @@ private fun RevealPhase(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .padding(bottom = 140.dp) // leave space for sticky bottom buttons
                 .verticalScroll(rememberScrollState())
         ) {
             // gradient header area
@@ -268,7 +281,7 @@ private fun RevealPhase(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(
-                        brush = Brush.verticalGradient(listOf(BrandPurple, BrandPurpleLight)),
+                        brush = Brush.verticalGradient(listOf(NeonCardBg, NeonBg)),
                         shape = RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp)
                     )
                     .padding(top = 56.dp, bottom = 40.dp)
@@ -644,14 +657,37 @@ private fun RevealPhase(
 
                 Spacer(Modifier.height(16.dp))
 
+                Spacer(Modifier.height(32.dp))
+            }
+        }
+
+        // Sticky Bottom Area
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(Color.Transparent, SurfaceBg, SurfaceBg),
+                        startY = 0f
+                    )
+                )
+                .padding(horizontal = 24.dp)
+                .padding(top = 32.dp, bottom = 24.dp)
+                .alpha(contentAlpha) // fade in with content
+        ) {
+            Column {
                 // share button with gentle pulse
                 Box(
                     modifier = Modifier
                         .fillMaxWidth().height(54.dp)
                         .scale(sharePulseScale)
                         .clip(RoundedCornerShape(16.dp))
-                        .background(Brush.horizontalGradient(listOf(BrandPurple, BrandPurpleLight)))
-                        .clickable { onShareClick() },
+                        .background(Brush.horizontalGradient(listOf(NeonPink, NeonPurple)))
+                        .clickable { 
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onShareClick() 
+                        },
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
@@ -664,19 +700,20 @@ private fun RevealPhase(
 
                 Spacer(Modifier.height(12.dp))
 
-                // retake button
+                // home button
                 Box(
                     modifier = Modifier
                         .fillMaxWidth().height(48.dp)
                         .clip(RoundedCornerShape(14.dp))
                         .background(BrandPurple.copy(alpha = 0.08f))
-                        .clickable { onRetakeClick() },
+                        .clickable { 
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onHomeClick() 
+                        },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("Retake Quiz", color = BrandPurple, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                    Text("Back to Home", color = BrandPurple, fontSize = 15.sp, fontWeight = FontWeight.Medium)
                 }
-
-                Spacer(Modifier.height(32.dp))
             }
         }
     }

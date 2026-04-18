@@ -22,6 +22,7 @@ class MainActivity : ComponentActivity() {
                 var screen by remember { mutableStateOf(Screen.WELCOME) }
                 var quizResult by remember { mutableStateOf<RarityCalculator.RarityResult?>(null) }
                 var quizAnswers by remember { mutableStateOf<List<UserAnswer>>(emptyList()) }
+                var skipResultLoading by remember { mutableStateOf(false) }
 
                 when (screen) {
                     Screen.WELCOME -> {
@@ -35,6 +36,7 @@ class MainActivity : ComponentActivity() {
                             onQuizComplete = { result, answers ->
                                 quizResult = result
                                 quizAnswers = answers
+                                skipResultLoading = false
                                 screen = Screen.RESULT
                             }
                         )
@@ -44,13 +46,20 @@ class MainActivity : ComponentActivity() {
                             ResultScreen(
                                 result = result,
                                 answers = quizAnswers,
+                                skipLoading = skipResultLoading,
                                 onShareClick = {
+                                    skipResultLoading = true
                                     screen = Screen.SHARE
                                 },
                                 onRetakeClick = {
                                     quizResult = null
                                     quizAnswers = emptyList()
                                     screen = Screen.QUIZ
+                                },
+                                onHomeClick = {
+                                    quizResult = null
+                                    quizAnswers = emptyList()
+                                    screen = Screen.WELCOME
                                 }
                             )
                         }
